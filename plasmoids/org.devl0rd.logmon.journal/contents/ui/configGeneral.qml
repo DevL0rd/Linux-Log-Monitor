@@ -7,6 +7,8 @@ import org.kde.kquickcontrols as KQuickControls
 Kirigami.FormLayout {
     property alias cfg_pollInterval: pollSpin.value
     property alias cfg_maxRows: rowsSpin.value
+    property alias cfg_searchLimit: searchSpin.value
+    property alias cfg_stickLines: stickSpin.value
     property alias cfg_defaultLevel: levelCombo.currentIndex
     property alias cfg_showApp: showApp.checked
     property alias cfg_wrapMessages: wrap.checked
@@ -22,8 +24,19 @@ Kirigami.FormLayout {
         }
     }
     RowLayout {
-        Kirigami.FormData.label: i18n("Lines kept:")
+        Kirigami.FormData.label: i18n("Live buffer:")
         QQC2.SpinBox { id: rowsSpin; from: 100; to: 2000; stepSize: 100 }
+        QQC2.Label { text: i18n("lines"); opacity: 0.6 }
+    }
+    RowLayout {
+        Kirigami.FormData.label: i18n("Search limit:")
+        QQC2.SpinBox { id: searchSpin; from: 500; to: 50000; stepSize: 500 }
+        QQC2.Label { text: i18n("matching lines"); opacity: 0.6 }
+    }
+    RowLayout {
+        Kirigami.FormData.label: i18n("Stick to bottom within:")
+        QQC2.SpinBox { id: stickSpin; from: 0; to: 30; stepSize: 1 }
+        QQC2.Label { text: i18n("lines"); opacity: 0.6 }
     }
     QQC2.ComboBox {
         id: levelCombo

@@ -30,8 +30,8 @@ CACHE_DIR = os.path.join(RUNTIME, APP)
 CACHE = os.path.join(CACHE_DIR, "log.json")
 LOCK = os.path.join(CACHE_DIR, "serve.lock")
 
-MAX_LINES = int(os.environ.get("LOGMON_MAX_LINES", "600"))
-SEED = min(MAX_LINES, 300)          # lines shown immediately on start
+MAX_LINES = int(os.environ.get("LOGMON_MAX_LINES", "2000"))  # >= widget's max live buffer
+SEED = min(MAX_LINES, 500)          # lines shown immediately on start
 FLUSH_INTERVAL = 0.4                # at most ~2.5 writes/sec while busy
 HEARTBEAT = 5.0                     # refresh `ts` even when idle (liveness)
 
