@@ -75,8 +75,9 @@ PlasmoidItem {
                 recs.sort(function(a, b) { return a.t - b.t })   // chronological
                 for (var k = 0; k < recs.length; k++) {
                     if (recs[k].t > root.lastT) {                // also de-dups the union
-                        logModel.append(root.rowFor(recs[k]))
-                        root.lastT = recs[k].t
+                        root.lastT = recs[k].t                   // advance even if muted
+                        if (!root.isMuted(recs[k]))
+                            logModel.append(root.rowFor(recs[k]))
                     }
                 }
             }
@@ -182,7 +183,7 @@ PlasmoidItem {
             return
         for (var i = 0; i < a.length; i++) {
             var r = a[i]
-            if (r.t > root.lastT && matches(r))
+            if (r.t > root.lastT && matches(r) && !isMuted(r))
                 logModel.append(rowFor(r))
         }
         root.lastT = a[a.length - 1].t
@@ -204,6 +205,30 @@ PlasmoidItem {
         if (index < 0 || index >= logModel.count)
             return
         logModel.setProperty(index, "expanded", !logModel.get(index).expanded)
+    }
+
+    // ---- muting (hide noisy apps from the view, both live and search) ----
+    property var _muted: []                             // lowercased app-name substrings
+    function refreshMuted() {
+        root._muted = (Plasmoid.configuration.mutedApps || "").toLowerCase()
+            .split(",").map(function(s) { return s.trim() }).filter(function(s) { return s !== "" })
+    }
+    function isMuted(r) {
+        var id = r.id.toLowerCase()
+        for (var i = 0; i < root._muted.length; i++)
+            if (id.indexOf(root._muted[i]) >= 0) return true
+        return false
+    }
+    function muteApp(app) {
+        var cur = (Plasmoid.configuration.mutedApps || "")
+            .split(",").map(function(s) { return s.trim() }).filter(function(s) { return s !== "" })
+        if (cur.indexOf(app) < 0) cur.push(app)
+        Plasmoid.configuration.mutedApps = cur.join(", ")
+        Plasmoid.configuration.writeConfig()
+    }
+    Connections {
+        target: Plasmoid.configuration
+        function onMutedAppsChanged() { root.refreshMuted(); root.applyMode() }
     }
 
     // clipboard + actions. copyText fires lineCopied() rather than touching the
@@ -240,7 +265,7 @@ PlasmoidItem {
     ListModel { id: logModel }
 
     // start in whatever mode the default severity implies (live tail or query)
-    Component.onCompleted: if (root.searchMode) applyMode()
+    Component.onCompleted: { refreshMuted(); if (root.searchMode) applyMode() }
 
     function prioColor(p) {
         if (p <= 3) return Kirigami.Theme.negativeTextColor      // err/crit/alert/emerg
@@ -320,9 +345,9 @@ PlasmoidItem {
                     // how close to the bottom still counts as "following" the tail
                     readonly property real stickPx: Math.max(0, Plasmoid.configuration.stickLines)
                         * (Kirigami.Theme.smallFont.pixelSize * 1.4 + Kirigami.Units.smallSpacing)
-                    property real lastContentHeight: 0
-                    // atBottom changes only on USER scrolling / viewport resize --
-                    // never on content growth -- so following the tail is stable
+                    property int lastCount: 0
+                    // atBottom tracks where the user is; it only changes on user
+                    // scrolling / viewport resize, never on content arriving
                     function updateFollowing() {
                         root.atBottom = (contentHeight <= height)
                             || (contentY >= contentHeight - height - stickPx)
@@ -330,14 +355,17 @@ PlasmoidItem {
                     }
                     onContentYChanged: updateFollowing()
                     onHeightChanged: updateFollowing()
-                    onContentHeightChanged: {
-                        if (!root.paused) {
-                            if (root.atBottom)
-                                Qt.callLater(positionViewAtEnd)            // stay pinned
-                            else if (contentHeight > lastContentHeight)
-                                root.hasNew = true                         // new lines off-screen
+                    // autoscroll is driven ONLY by rows being added (count up), and
+                    // never while the user is dragging/flicking -- so it can't fight
+                    // a manual scroll or yank on layout jitter
+                    onCountChanged: {
+                        if (count > lastCount && !root.paused) {
+                            if (root.atBottom && !moving && !dragging)
+                                Qt.callLater(positionViewAtEnd)
+                            else if (!root.atBottom)
+                                root.hasNew = true
                         }
-                        lastContentHeight = contentHeight
+                        lastCount = count
                     }
                     Component.onCompleted: { updateFollowing(); Qt.callLater(positionViewAtEnd) }
 
@@ -428,6 +456,10 @@ PlasmoidItem {
                                 onTriggered: root.copyAll()
                             }
                             QQC2.MenuSeparator {}
+                            QQC2.MenuItem {
+                                text: i18n("Mute \"%1\"", model.app); icon.name: "audio-volume-muted"
+                                onTriggered: root.muteApp(model.app)
+                            }
                             QQC2.MenuItem {
                                 text: i18n("Ask Claude"); icon.name: "help-hint"
                                 onTriggered: root.askClaude(model.time, model.app, model.pid, model.msg, model.prio)

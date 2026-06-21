@@ -10,6 +10,7 @@ Kirigami.FormLayout {
     property alias cfg_searchLimit: searchSpin.value
     property alias cfg_stickLines: stickSpin.value
     property alias cfg_defaultLevel: levelCombo.currentIndex
+    property alias cfg_mutedApps: mutedField.text
     property alias cfg_showApp: showApp.checked
     property alias cfg_wrapMessages: wrap.checked
     property alias cfg_accentColor: accent.text
@@ -18,7 +19,7 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: i18n("Poll interval:")
         QQC2.SpinBox {
             id: pollSpin
-            from: 250; to: 5000; stepSize: 250
+            from: 100; to: 5000; stepSize: 50
             textFromValue: function(v) { return (v / 1000).toFixed(2) + " s" }
             valueFromText: function(t) { return parseFloat(t) * 1000 }
         }
@@ -48,6 +49,19 @@ Kirigami.FormLayout {
 
     QQC2.CheckBox { id: showApp; Kirigami.FormData.label: i18n("Show:"); text: i18n("Application column") }
     QQC2.CheckBox { id: wrap; text: i18n("Wrap long messages") }
+
+    Item { Kirigami.FormData.isSection: true }
+
+    QQC2.TextField {
+        id: mutedField
+        Kirigami.FormData.label: i18n("Muted apps:")
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+        placeholderText: i18n("comma-separated, e.g. discord, pipewire")
+    }
+    QQC2.Label {
+        text: i18n("Hidden from the log. Right-click a line → Mute to add one.")
+        font: Kirigami.Theme.smallFont; opacity: 0.6
+    }
 
     Item { Kirigami.FormData.isSection: true }
 
