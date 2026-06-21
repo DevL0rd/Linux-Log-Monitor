@@ -83,3 +83,10 @@ echo ""
 echo "Done! Add it via right-click desktop/panel -> Add Widgets -> search \"System Log\"."
 echo "If it doesn't appear yet, run:  systemctl --user restart plasma-plasmashell.service"
 echo "(That restart picks up the QML_XHR flag from environment.d; no logout needed.)"
+
+# reload Plasma at the end -- unless --no-reload (so bulk installs can reload once)
+if ! printf '%s\n' "$@" | grep -qx -- --no-reload; then
+    echo "Reloading Plasma…"
+    systemctl --user restart plasma-plasmashell.service 2>/dev/null \
+        || { kquitapp6 plasmashell 2>/dev/null; (kstart plasmashell >/dev/null 2>&1 &); }
+fi
