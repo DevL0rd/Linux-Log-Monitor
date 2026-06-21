@@ -59,10 +59,14 @@ systemctl --user enable --now linux-log-monitor.service
 echo "Enabled resident collector service (linux-log-monitor.service)"
 
 # --- 3. allow the widget to read the tmpfs snapshot in-process via QML XHR ---
-# (Qt blocks file:// XHR unless this is set; applies to the whole Plasma session)
-mkdir -p ~/.config/plasma-workspace/env
-echo 'export QML_XHR_ALLOW_FILE_READ=1' > ~/.config/plasma-workspace/env/linux-log-monitor.sh
-echo "Set QML_XHR_ALLOW_FILE_READ=1 for the Plasma session (in-process widget reads)"
+# (Qt blocks file:// XHR unless this is set.) Use environment.d so the systemd
+# user manager always provides it -- including a mid-session `systemctl --user
+# restart plasma-plasmashell`, which the login-only plasma-workspace/env misses.
+mkdir -p ~/.config/environment.d
+echo 'QML_XHR_ALLOW_FILE_READ=1' > ~/.config/environment.d/linux-log-monitor.conf
+systemctl --user set-environment QML_XHR_ALLOW_FILE_READ=1 2>/dev/null || true  # apply now, no relogin
+rm -f ~/.config/plasma-workspace/env/linux-log-monitor.sh                       # migrate off old login-only location
+echo "Set QML_XHR_ALLOW_FILE_READ=1 (environment.d; survives plasma restarts)"
 
 # --- 4. install the plasmoid(s) ---
 echo "Installing widget(s)..."
@@ -77,5 +81,5 @@ done
 
 echo ""
 echo "Done! Add it via right-click desktop/panel -> Add Widgets -> search \"System Log\"."
-echo "If it doesn't appear yet, run:  kquitapp6 plasmashell && kstart plasmashell"
-echo "(The QML_XHR flag needs a fresh Plasma session, so log out/in once if the widget is blank.)"
+echo "If it doesn't appear yet, run:  systemctl --user restart plasma-plasmashell.service"
+echo "(That restart picks up the QML_XHR flag from environment.d; no logout needed.)"

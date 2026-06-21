@@ -10,7 +10,7 @@ systemctl --user daemon-reload 2>/dev/null || true
 
 echo "Removing helper scripts and env flag..."
 rm -f "$BIN_DIR/logmon-collect"
-rm -f ~/.config/plasma-workspace/env/linux-log-monitor.sh
+rm -f ~/.config/environment.d/linux-log-monitor.conf ~/.config/plasma-workspace/env/linux-log-monitor.sh
 rm -rf "${XDG_RUNTIME_DIR:-/tmp}/Linux-Log-Monitor"
 
 echo "Removing widget(s)..."
