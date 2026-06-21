@@ -199,6 +199,16 @@ PlasmoidItem {
         ingest()
     }
 
+    // clear the visible log; keep following from now on (cleared lines won't
+    // re-appear, but new ones still stream in)
+    function clearLog() {
+        logModel.clear()
+        var a = logData.lines
+        if (!root.searchMode && a.length)
+            root.lastT = a[a.length - 1].t     // skip everything currently buffered
+        root.hasNew = false
+    }
+
     // expansion lives in the model row itself -- ListModel.setProperty fires a
     // proper change notification, unlike mutating a shared JS object in place
     function toggleExpand(index) {
@@ -325,6 +335,13 @@ PlasmoidItem {
                     icon.name: root.paused ? "media-playback-start" : "media-playback-pause"
                     onClicked: root.paused = !root.paused
                     QQC2.ToolTip.text: root.paused ? i18n("Resume (follow)") : i18n("Pause")
+                    QQC2.ToolTip.visible: hovered
+                }
+                QQC2.ToolButton {
+                    flat: true
+                    icon.name: "edit-clear-history"
+                    onClicked: root.clearLog()
+                    QQC2.ToolTip.text: i18n("Clear")
                     QQC2.ToolTip.visible: hovered
                 }
             }
