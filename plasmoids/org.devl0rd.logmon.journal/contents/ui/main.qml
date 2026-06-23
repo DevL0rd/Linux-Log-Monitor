@@ -48,8 +48,9 @@ PlasmoidItem {
     LogData {
         id: logData
         interval: Plasmoid.configuration.pollInterval
-        paused: root.paused || root.searchMode         // live reads pause during search
-        onUpdated: if (!root.searchMode) root.ingest()
+        // kept active during search too, so its updates also drive the search refresh
+        paused: root.paused
+        onUpdated: root.searchMode ? root.scheduleSearchRefresh() : root.ingest()
     }
 
     // ---- full-journal search (on-demand journalctl, live-refreshed) ----
@@ -73,13 +74,17 @@ PlasmoidItem {
                     if (r) recs.push(r)
                 }
                 recs.sort(function(a, b) { return a.t - b.t })   // chronological
+                var added = 0
                 for (var k = 0; k < recs.length; k++) {
                     if (recs[k].t > root.lastT) {                // also de-dups the union
                         root.lastT = recs[k].t                   // advance even if muted
-                        if (!root.isMuted(recs[k]))
+                        if (!root.isMuted(recs[k])) {
                             logModel.append(root.rowFor(recs[k]))
+                            added++
+                        }
                     }
                 }
+                root.rowsAppended(added)
             }
             var over = logModel.count - Plasmoid.configuration.searchLimit
             if (over > 0)
@@ -116,11 +121,11 @@ PlasmoidItem {
         journalQuery.connectSource(cmd)
     }
     Timer { id: searchDebounce; interval: 300; onTriggered: root.applyMode() }
-    Timer {                                            // keep search results live
-        interval: Math.max(1500, Plasmoid.configuration.pollInterval)
-        repeat: true
-        running: root.searchMode && !root.paused
-        onTriggered: root.runSearch(false)
+    // keep search results live without polling: each buffer write (new journal
+    // activity) arms this once, coalescing bursts into one incremental refresh
+    Timer { id: searchRefresh; interval: Math.max(250, Plasmoid.configuration.pollInterval); onTriggered: root.runSearch(false) }
+    function scheduleSearchRefresh() {
+        if (root.searchMode && !root.paused && !searchRefresh.running) searchRefresh.start()
     }
 
     // (re)enter a mode after the search box or severity changes
@@ -176,20 +181,27 @@ PlasmoidItem {
                  u: unit, pid: String(j._PID || j.SYSLOG_PID || ""), m: String(m || "") }
     }
 
+    // fired by the append paths; the ListView (in fullRepresentation scope, which
+    // root functions can't reference by id) listens and follows the tail
+    signal rowsAppended(int added)
     // append only records newer than the last one shown (live mode)
     function ingest() {
         var a = logData.lines
         if (a.length === 0)
             return
+        var added = 0
         for (var i = 0; i < a.length; i++) {
             var r = a[i]
-            if (r.t > root.lastT && matches(r) && !isMuted(r))
+            if (r.t > root.lastT && matches(r) && !isMuted(r)) {
                 logModel.append(rowFor(r))
+                added++
+            }
         }
         root.lastT = a[a.length - 1].t
         var over = logModel.count - Plasmoid.configuration.maxRows
         if (over > 0)
             logModel.remove(0, over)
+        root.rowsAppended(added)
     }
 
     // filter/severity changed in live mode -> reshow the whole ring buffer
@@ -363,7 +375,6 @@ PlasmoidItem {
                     // how close to the bottom still counts as "following" the tail
                     readonly property real stickPx: Math.max(0, Plasmoid.configuration.stickLines)
                         * (Kirigami.Theme.smallFont.pixelSize * 1.4 + Kirigami.Units.smallSpacing)
-                    property int lastCount: 0
                     // atBottom tracks where the user is; it only changes on user
                     // scrolling / viewport resize, never on content arriving
                     function updateFollowing() {
@@ -373,17 +384,23 @@ PlasmoidItem {
                     }
                     onContentYChanged: updateFollowing()
                     onHeightChanged: updateFollowing()
-                    // autoscroll is driven ONLY by rows being added (count up), and
-                    // never while the user is dragging/flicking -- so it can't fight
-                    // a manual scroll or yank on layout jitter
-                    onCountChanged: {
-                        if (count > lastCount && !root.paused) {
-                            if (root.atBottom && !moving && !dragging)
+                    // called by the append paths (ingest/search) with how many rows were
+                    // added. Count can't be the trigger: the ring trims from the top so
+                    // count plateaus at maxRows and "count went up" stops being true once
+                    // the log fills. Never yanks while the user is dragging/flicking.
+                    function followTail(added) {
+                        if (added <= 0 || root.paused)
+                            return
+                        if (root.atBottom) {
+                            if (!moving && !dragging)
                                 Qt.callLater(positionViewAtEnd)
-                            else if (!root.atBottom)
-                                root.hasNew = true
+                        } else {
+                            root.hasNew = true
                         }
-                        lastCount = count
+                    }
+                    Connections {
+                        target: root
+                        function onRowsAppended(added) { view.followTail(added) }
                     }
                     Component.onCompleted: { updateFollowing(); Qt.callLater(positionViewAtEnd) }
 
@@ -493,8 +510,8 @@ PlasmoidItem {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Kirigami.Units.largeSpacing
-            visible: root.hasNew && !root.paused
-            text: i18n("New logs")
+            visible: !root.atBottom && !root.paused
+            text: root.hasNew ? i18n("New logs") : i18n("Jump to bottom")
             icon.name: "go-down"
             onClicked: { view.positionViewAtEnd(); root.hasNew = false }
         }
