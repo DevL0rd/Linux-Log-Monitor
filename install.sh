@@ -77,7 +77,7 @@ fi
 echo "Installing widget(s)..."
 for d in "$PLASMOID_SRC"/org.devl0rd.logmon.*; do
     cp -r "$REPO_DIR/shared/lib" "$d/contents/ui/"   # repo-specific components -> ui/lib/
-    cp "$REPO_DIR/shared/common/"*.qml "$REPO_DIR/shared/common/"*.js "$d/contents/ui/lib/"  # shared (submodule) components
+    cp "$REPO_DIR/shared/common/FileWatcher.qml" "$d/contents/ui/lib/"  # shared (submodule) component
     if kpackagetool6 -t Plasma/Applet -u "$d" >/dev/null 2>&1; then
         echo "  upgraded $(basename "$d")"
     else
