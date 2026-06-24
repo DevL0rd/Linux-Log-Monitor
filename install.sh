@@ -69,9 +69,15 @@ rm -f ~/.config/plasma-workspace/env/linux-log-monitor.sh                       
 echo "Set QML_XHR_ALLOW_FILE_READ=1 (environment.d; survives plasma restarts)"
 
 # --- 4. install the plasmoid(s) ---
+if [ ! -e "$REPO_DIR/shared/common/FileWatcher.qml" ]; then
+    echo "  ! shared/common (Linux-Plasma-Shared submodule) is empty." >&2
+    echo "    Run: git submodule update --init --recursive" >&2
+    exit 1
+fi
 echo "Installing widget(s)..."
 for d in "$PLASMOID_SRC"/org.devl0rd.logmon.*; do
-    cp -r "$REPO_DIR/shared/lib" "$d/contents/ui/"   # sync shared components into each
+    cp -r "$REPO_DIR/shared/lib" "$d/contents/ui/"   # repo-specific components -> ui/lib/
+    cp "$REPO_DIR/shared/common/"*.qml "$REPO_DIR/shared/common/"*.js "$d/contents/ui/lib/"  # shared (submodule) components
     if kpackagetool6 -t Plasma/Applet -u "$d" >/dev/null 2>&1; then
         echo "  upgraded $(basename "$d")"
     else
