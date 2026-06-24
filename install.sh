@@ -87,6 +87,13 @@ echo "(That restart picks up the QML_XHR flag from environment.d; no logout need
 # reload Plasma at the end -- unless --no-reload (so bulk installs can reload once)
 if ! printf '%s\n' "$@" | grep -qx -- --no-reload; then
     echo "Reloading Plasma…"
-    systemctl --user restart plasma-plasmashell.service 2>/dev/null \
-        || { kquitapp6 plasmashell 2>/dev/null; (kstart plasmashell >/dev/null 2>&1 &); }
+    # plasmashell may be run by plasma-plasmashell.service OR as an app-plasmashell@<hash>
+    # scope (then plasma-plasmashell.service is inactive and "restarting" it just spawns a
+    # doomed duplicate). Restart the unit only when it actually runs the shell; otherwise
+    # quit + relaunch the running instance directly.
+    if systemctl --user --quiet is-active plasma-plasmashell.service; then
+        systemctl --user restart plasma-plasmashell.service
+    else
+        kquitapp6 plasmashell 2>/dev/null; (kstart plasmashell >/dev/null 2>&1 &)
+    fi
 fi

@@ -61,12 +61,8 @@ Item {
         xhr.send()
     }
 
-    Timer {
-        interval: root.interval
-        repeat: true
-        running: root.cachePath !== "" && !root.paused
-        onTriggered: root.read()
-    }
+    // event-driven: re-read the instant the collector rewrites the snapshot (no polling)
+    FileWatcher { path: root.cachePath; onChanged: root.read() }
 
     Component.onCompleted: helper.connectSource("printf %s \"$XDG_RUNTIME_DIR/Linux-Log-Monitor/log.json\"")
 }
